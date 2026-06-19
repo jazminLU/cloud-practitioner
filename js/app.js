@@ -130,7 +130,7 @@ function navigate(view, opts = {}) {
   app.appendChild(div);
   updateFooter(view);
 
-  if (view === 'quiz') nextQuestion();
+  if (view === 'quiz') { initQuiz(); nextQuestion(); }
 }
 
 /* ─── Footer keyboard hints ────────────────────────────────────────────── */
