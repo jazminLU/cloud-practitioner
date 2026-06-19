@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="App de práctica para el examen AWS Cloud Practitioner CLF-C02. Flashcards y quiz de opción múltiple con los 60+ servicios del examen.">
+  <title>AWS Cloud Practitioner – Práctica CLF-C02</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+
+    <nav class="topnav" role="navigation" aria-label="Navegación principal">
+      <div class="nav-inner">
+        <a class="nav-logo" href="#" onclick="navigate('home'); return false;" aria-label="Inicio">
+          <div class="nav-logo-icon" aria-hidden="true">CP</div>
+          <div class="nav-logo-text">
+            <span class="nav-logo-title">Cloud Practitioner</span>
+            <span class="nav-logo-sub">CLF-C02 · Practice</span>
+          </div>
+        </a>
+
+        <button class="nav-btn active" data-view="home"
+          onclick="navigate('home')" aria-label="Inicio">
+          Inicio
+        </button>
+        <button class="nav-btn" data-view="flashcards"
+          onclick="navigate('flashcards')" aria-label="Flashcards">
+          Flashcards
+        </button>
+        <button class="nav-btn" data-view="quiz"
+          onclick="navigate('quiz')" aria-label="Quiz">
+          Quiz
+        </button>
+      </div>
+    </nav>
+
+    <main id="app" role="main" aria-live="polite">
+      <!-- Content rendered by app.js -->
+    </main>
+
+    <footer role="contentinfo">
+      <div id="footer-hints" aria-label="Atajos de teclado"></div>
+    </footer>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
