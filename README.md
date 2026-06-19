@@ -4,6 +4,9 @@
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-222222?style=for-the-badge&logo=githubpages&logoColor=white)
+
+**🚀 [Ver app en vivo](https://jazminlu.github.io/cloud-practitioner/)**
 
 App de práctica para el examen **AWS Certified Cloud Practitioner (CLF-C02)**. Sin dependencias externas ni servidor — abrís el archivo y empezás a estudiar.
 
@@ -26,7 +29,7 @@ App de práctica para el examen **AWS Certified Cloud Practitioner (CLF-C02)**. 
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/sergioortiz170992/cloud-practitioner.git
+git clone https://github.com/jazminLU/cloud-practitioner.git
 cd cloud-practitioner
 ```
 
