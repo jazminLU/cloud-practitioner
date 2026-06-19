@@ -130,7 +130,10 @@ function navigate(view, opts = {}) {
   app.appendChild(div);
   updateFooter(view);
 
-  if (view === 'quiz') { initQuiz(); nextQuestion(); }
+  if (view === 'quiz') {
+    initQuiz();
+    setTimeout(() => showQuestion(), 0);
+  }
 }
 
 /* ─── Footer keyboard hints ────────────────────────────────────────────── */
@@ -396,15 +399,13 @@ function refreshFC() {
 
 /* ─── QUIZ ──────────────────────────────────────────────────────────────── */
 function renderQuizShell() {
-  const pills = buildPills();
-
   return `
     <div class="page-title">Quiz</div>
     <div class="page-subtitle">Elegí una opción para responder. Podés usar las teclas A B C D.</div>
 
-    <div class="pill-bar" id="pill-bar">${pills}</div>
+    <div class="pill-bar" id="pill-bar">${buildPills()}</div>
 
-    <div class="quiz-type-row">
+    <div class="quiz-type-row" id="qtype-row">
       ${['mixed','name2desc','desc2name'].map(t => {
         const labels = { mixed: '🔀 Mixto', name2desc: 'Nombre → Descripción', desc2name: 'Descripción → Nombre' };
         return `<button class="qtype-btn ${State.quizType === t ? 'active' : ''}"
@@ -412,10 +413,12 @@ function renderQuizShell() {
       }).join('')}
     </div>
 
-    <div class="score-row" id="score-row">
-      <div>Correctas: <span class="val ok" id="sc-ok">0</span></div>
-      <div>Incorrectas: <span class="val fail" id="sc-fail">0</span></div>
-      <div>Restantes: <span class="val" id="sc-left">–</span></div>
+    <div class="score-row">
+      Correctas: <span class="val ok" id="sc-ok">0</span>
+      &nbsp;·&nbsp;
+      Incorrectas: <span class="val fail" id="sc-fail">0</span>
+      &nbsp;·&nbsp;
+      Restantes: <span class="val" id="sc-left">–</span>
     </div>
 
     <div class="progress-row">
@@ -425,14 +428,7 @@ function renderQuizShell() {
       <div class="progress-label" id="quiz-prog-label">0%</div>
     </div>
 
-    <div class="quiz-card" id="quiz-card">
-      <div id="q-meta" class="q-meta"></div>
-      <div id="q-text" class="q-text"></div>
-      <div id="q-options" class="options"></div>
-      <div id="q-feedback" class="quiz-feedback"></div>
-    </div>
-
-    <button class="next-btn" id="next-btn" onclick="nextQuestion()">Siguiente →</button>
+    <div id="quiz-question-wrap"></div>
   `;
 }
 
@@ -441,12 +437,13 @@ function initQuiz() {
     ? Progress.weakServices()
     : getFiltered();
 
-  State.quiz.queue = shuffle(services.length > 0 ? services : getFiltered());
-  State.quiz.ok = 0;
-  State.quiz.fail = 0;
+  State.quiz.queue    = shuffle(services.length > 0 ? services : SERVICES);
+  State.quiz.ok       = 0;
+  State.quiz.fail     = 0;
   State.quiz.catStats = {};
   State.quiz.answered = false;
-  State.weakOnly = false;
+  State.quiz.current  = null;
+  State.weakOnly      = false;
 }
 
 function setQuizType(type, btn) {
@@ -454,25 +451,15 @@ function setQuizType(type, btn) {
   document.querySelectorAll('.qtype-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   initQuiz();
-  nextQuestion();
+  showQuestion();
 }
 
-function nextQuestion() {
-  if (State.quiz.queue.length === 0) {
-    navigate('results');
-    return;
-  }
-
-  State.quiz.current = State.quiz.queue.shift();
-  State.quiz.answered = false;
-
-  const svc = State.quiz.current;
+function buildQuestionData(svc) {
   const type = State.quizType === 'mixed'
     ? (Math.random() > 0.5 ? 'name2desc' : 'desc2name')
     : State.quizType;
 
-  // Build 3 wrong options from rest of SERVICES (not current cat if possible)
-  const pool = shuffle(SERVICES.filter(s => s.name !== svc.name));
+  const pool   = shuffle(SERVICES.filter(s => s.name !== svc.name));
   const wrongs = pool.slice(0, 3);
 
   let questionHTML, options;
@@ -480,63 +467,89 @@ function nextQuestion() {
   if (type === 'name2desc') {
     questionHTML = `¿Cuál es la descripción de <strong>${svc.name}</strong>?`;
     options = shuffle([
-      { text: svc.desc, correct: true, svc },
-      ...wrongs.map(s => ({ text: s.desc, correct: false, svc: s })),
+      { text: svc.desc,  correct: true,  svcName: svc.name },
+      ...wrongs.map(s => ({ text: s.desc,  correct: false, svcName: s.name })),
     ]);
   } else {
     questionHTML = `¿Qué servicio corresponde a esta descripción?<br><br><em>"${svc.desc}"</em>`;
     options = shuffle([
-      { text: svc.name, correct: true, svc },
-      ...wrongs.map(s => ({ text: s.name, correct: false, svc: s })),
+      { text: svc.name,  correct: true,  svcName: svc.name },
+      ...wrongs.map(s => ({ text: s.name,  correct: false, svcName: s.name })),
     ]);
   }
 
-  State.quiz.correctIdx = options.findIndex(o => o.correct);
-
-  // Render
-  const total = State.quiz.ok + State.quiz.fail + State.quiz.queue.length + 1;
-  const done  = State.quiz.ok + State.quiz.fail;
-  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  document.getElementById('sc-left').textContent  = State.quiz.queue.length;
-  document.getElementById('quiz-prog').style.width = pct + '%';
-  document.getElementById('quiz-prog-label').textContent = pct + '%';
-
-  document.getElementById('q-meta').innerHTML = `
-    <span class="q-meta-label">Pregunta ${done + 1}</span>
-    <span class="q-cat-badge" style="border-color:${catColor(svc.cat)};color:${catColor(svc.cat)}">${catLabel(svc.cat)}</span>
-  `;
-
-  document.getElementById('q-text').innerHTML = questionHTML;
-
-  const letters = ['A', 'B', 'C', 'D'];
-  document.getElementById('q-options').innerHTML = options.map((o, i) => `
-    <button class="option" data-idx="${i}" onclick="answerQuiz(this, ${o.correct}, '${o.svc.name}')">
-      <span class="opt-letter">${letters[i]}</span>
-      ${o.text}
-    </button>
-  `).join('');
-
-  const fb = document.getElementById('q-feedback');
-  fb.className = 'quiz-feedback';
-  fb.innerHTML = '';
-
-  document.getElementById('next-btn').classList.remove('show');
+  return { questionHTML, options, correctIdx: options.findIndex(o => o.correct) };
 }
 
-function answerQuiz(btn, correct, chosenName) {
+function showQuestion() {
+  if (State.quiz.queue.length === 0) {
+    navigate('results');
+    return;
+  }
+
+  State.quiz.current  = State.quiz.queue.shift();
+  State.quiz.answered = false;
+
+  const svc  = State.quiz.current;
+  const { questionHTML, options, correctIdx } = buildQuestionData(svc);
+  State.quiz.correctIdx = correctIdx;
+
+  const done  = State.quiz.ok + State.quiz.fail;
+  const total = done + State.quiz.queue.length + 1;
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+  const letters = ['A', 'B', 'C', 'D'];
+
+  // Update score bar
+  const scLeft = document.getElementById('sc-left');
+  const scOk   = document.getElementById('sc-ok');
+  const scFail = document.getElementById('sc-fail');
+  const prog   = document.getElementById('quiz-prog');
+  const progLbl= document.getElementById('quiz-prog-label');
+  if (scLeft)  scLeft.textContent  = State.quiz.queue.length;
+  if (scOk)    scOk.textContent    = State.quiz.ok;
+  if (scFail)  scFail.textContent  = State.quiz.fail;
+  if (prog)    prog.style.width    = pct + '%';
+  if (progLbl) progLbl.textContent = pct + '%';
+
+  // Render question card fresh
+  const wrap = document.getElementById('quiz-question-wrap');
+  if (!wrap) return;
+
+  wrap.innerHTML = `
+    <div class="quiz-card">
+      <div class="q-meta">
+        <span class="q-meta-label">Pregunta ${done + 1} de ${total}</span>
+        <span class="q-cat-badge" style="border-color:${catColor(svc.cat)};color:${catColor(svc.cat)}">${catLabel(svc.cat)}</span>
+      </div>
+      <div class="q-text">${questionHTML}</div>
+      <div class="options">
+        ${options.map((o, i) => `
+          <button class="option" data-idx="${i}" data-correct="${o.correct}" onclick="answerQuiz(this)">
+            <span class="opt-letter">${letters[i]}</span>
+            <span>${o.text}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="quiz-feedback" id="q-feedback"></div>
+    </div>
+    <button class="next-btn" id="next-btn" onclick="showQuestion()">Siguiente →</button>
+  `;
+}
+
+function answerQuiz(btn) {
   if (State.quiz.answered) return;
   State.quiz.answered = true;
 
-  const svc = State.quiz.current;
+  const correct = btn.dataset.correct === 'true';
+  const svc     = State.quiz.current;
+
   Progress.record(svc.name, correct);
 
-  // Update category stats
   if (!State.quiz.catStats[svc.cat]) State.quiz.catStats[svc.cat] = { ok: 0, total: 0 };
   State.quiz.catStats[svc.cat].total++;
   if (correct) State.quiz.catStats[svc.cat].ok++;
 
-  // Disable all options and style them
+  // Style all options
   document.querySelectorAll('.option').forEach((b, i) => {
     b.setAttribute('disabled', '');
     b.onclick = null;
@@ -550,26 +563,33 @@ function answerQuiz(btn, correct, chosenName) {
     State.quiz.ok++;
   }
 
-  document.getElementById('sc-ok').textContent   = State.quiz.ok;
-  document.getElementById('sc-fail').textContent = State.quiz.fail;
+  // Update score
+  const scOk   = document.getElementById('sc-ok');
+  const scFail = document.getElementById('sc-fail');
+  if (scOk)   scOk.textContent   = State.quiz.ok;
+  if (scFail) scFail.textContent = State.quiz.fail;
 
   // Feedback
-  const tips = svc.tips && svc.tips.length
+  const tip = svc.tips && svc.tips.length
     ? `<div class="feedback-tip">${svc.tips[0]}</div>`
     : '';
 
   const fb = document.getElementById('q-feedback');
-  if (correct) {
-    fb.className = 'quiz-feedback ok show';
-    fb.innerHTML = `✓ Correcto. <strong>${svc.name}</strong> — ${svc.short}.${tips}`;
-  } else {
-    fb.className = 'quiz-feedback bad show';
-    fb.innerHTML = `✗ Incorrecto. La respuesta es <strong>${svc.name}</strong> — ${svc.short}.<br><br>${svc.desc}${tips}`;
+  if (fb) {
+    if (correct) {
+      fb.className = 'quiz-feedback ok show';
+      fb.innerHTML = `✓ Correcto. <strong>${svc.name}</strong> — ${svc.short}.${tip}`;
+    } else {
+      fb.className = 'quiz-feedback bad show';
+      fb.innerHTML = `✗ Incorrecto. La respuesta correcta es <strong>${svc.name}</strong> — ${svc.short}.<br><br>${svc.desc}${tip}`;
+    }
   }
 
   const nextBtn = document.getElementById('next-btn');
-  nextBtn.textContent = State.quiz.queue.length === 0 ? 'Ver resultado →' : 'Siguiente →';
-  nextBtn.classList.add('show');
+  if (nextBtn) {
+    nextBtn.textContent = State.quiz.queue.length === 0 ? 'Ver resultado →' : 'Siguiente →';
+    nextBtn.classList.add('show');
+  }
 }
 
 /* ─── RESULTS ───────────────────────────────────────────────────────────── */
@@ -620,8 +640,8 @@ function renderResults() {
       ` : ''}
 
       <div class="results-actions">
-        <button class="btn-primary"    onclick="navigate('quiz')">Volver a intentar</button>
-        <button class="btn-secondary"  onclick="navigate('home')">Inicio</button>
+        <button class="btn-primary"   onclick="navigate('quiz')">Volver a intentar</button>
+        <button class="btn-secondary" onclick="navigate('home')">Inicio</button>
         ${weak.length > 0 ? `<button class="btn-danger" onclick="startWeakQuiz()">Practicar ${weak.length} débiles</button>` : ''}
       </div>
     </div>
@@ -654,7 +674,7 @@ function setFilter(cat, btn) {
     document.getElementById('fc-next').disabled = State.fc.list.length <= 1;
   } else if (State.view === 'quiz') {
     initQuiz();
-    nextQuestion();
+    showQuestion();
   }
 }
 
@@ -675,7 +695,7 @@ document.addEventListener('keydown', e => {
     if (State.quiz.answered) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        nextQuestion();
+        showQuestion();
       }
     } else {
       const map = { a: 0, b: 1, c: 2, d: 3 };
